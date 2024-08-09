@@ -76,15 +76,33 @@ module ibex_core #(
     // Debug Interface
     input  logic        debug_req_i,
 
+    // CX Interface: ignore unused signals
+    // to let it optimze by the synthesizer
+
+    output logic        cx_clk,
+    output logic        cx_rst,
+    output logic        cx_req_valid,
+    output logic [1:0]  cx_cxu_id,
+    output logic [1:0]  cx_state_id,
+    //output logic []     cx_req_func,    // ??
+    output logic [31:0] cx_req_data0,
+    output logic [31:0] cx_req_data1,
+
+    input  logic        cx_resp_valid,
+    input  logic        cx_resp_state,
+    input  logic [3:0]  cx_resp_status,
+    input  logic [31:0] cx_resp_data,
+
+    output logic [15:0] cx_virt_state_id,
+
     // CPU Control Signals
     input  logic        fetch_enable_i,
 
     input  logic [N_EXT_PERF_COUNTERS-1:0] ext_perf_counters_i,
-    output logic [31:0] eFPGA_operand_a_o,
-    output logic [31:0] eFPGA_operand_b_o,
-    input  logic [31:0] eFPGA_result_a_i,
-    input  logic [31:0] eFPGA_result_b_i,
-    input  logic [31:0] eFPGA_result_c_i
+    // unused, since we're not doing OoO
+    output logic [1:0] cx_id_o,
+    output logic [31:0] cx_insn_o,
+    output logic [24:0] cx_func_o
 );
 
   import ibex_defines::*;
@@ -200,12 +218,19 @@ module ibex_core #(
 
   // eFPGA to ID
   logic        eFPGA_en;
-  logic [1:0]  eFPGA_operator;
+  logic [1:0]  cx_optype;
   //logic [31:0] eFPGA_operand_a;
   //logic [31:0] eFPGA_operand_b;
   logic [3:0]  eFPGA_delay;
+  logic [24:0] cx_func;
+  logic [31:0] cx_insn;
 
+  //////////////////////
+  // CX vals          //
+  //////////////////////
 
+  assign cx_func_o = cx_func;
+  assign cx_insn_o = cx_insn;
 
 
   //////////////////////
@@ -241,6 +266,14 @@ module ibex_core #(
       .test_en_i ( test_en_i       ),
       .clk_o     ( clk             )
   );
+
+
+  //////////////
+  // CX       //
+  //////////////
+
+  assign cx_clk = clk_i;
+  assign cx_rst = ~rst_ni;
 
   //////////////
   // IF stage //
@@ -355,10 +388,13 @@ module ibex_core #(
       .multdiv_operand_b_ex_o       ( multdiv_operand_b_ex   ),
 
       .eFPGA_en_o                   ( eFPGA_en               ),
-      .eFPGA_operator_o             ( eFPGA_operator         ),
-      .eFPGA_operand_a_o            ( eFPGA_operand_a_o        ),
-      .eFPGA_operand_b_o            ( eFPGA_operand_b_o        ),
+      .cx_optype_o             ( cx_optype         ),
+      .eFPGA_operand_a_o            ( cx_req_data0        ),
+      .eFPGA_operand_b_o            ( cx_req_data1        ),
       .eFPGA_delay_o                ( eFPGA_delay            ),
+      .cx_func_o                    ( cx_func                ),
+      .cx_insn_o                    ( cx_insn                ),
+
       // CSR ID/EX
       .csr_access_ex_o              ( csr_access_ex        ),
       .csr_op_ex_o                  ( csr_op_ex            ),
@@ -434,12 +470,10 @@ module ibex_core #(
       .regfile_wdata_ex_o         ( regfile_wdata_ex      ),
 
       .eFPGA_en_i                 (eFPGA_en               ),
-      .eFPGA_operator_i           (eFPGA_operator         ),
+      .cx_optype_i           (cx_optype         ),
       //.eFPGA_operand_a_i          (eFPGA_operand_a        ),
       //.eFPGA_operand_b_i          (eFPGA_operand_b        ),
-      .eFPGA_result_a_i           (eFPGA_result_a_i),
-      .eFPGA_result_b_i           (eFPGA_result_b_i),
-      .eFPGA_result_c_i           (eFPGA_result_c_i),
+      .eFPGA_result_a_i           (cx_resp_data),
       .eFPGA_delay_i              (eFPGA_delay),
       // To IF: Jump and branch target and decision
       .jump_target_o              ( jump_target_ex        ),
@@ -541,6 +575,19 @@ module ibex_core #(
       .csr_cause_i             ( csr_cause          ),
       .csr_save_cause_i        ( csr_save_cause     ),
 
+      .cx_resp_valid           ( cx_resp_valid      ),
+      .cx_ci                   ( cx_resp_status[0]  ),
+      .cx_si                   ( cx_resp_status[1]  ),
+      .cx_fi                   ( cx_resp_status[2]  ),
+      .cx_op                   ( cx_resp_status[3]  ),
+      .cx_cxu_id               ( cx_cxu_id          ),
+      .cx_state_id             ( cx_state_id        ),
+      .cx_virt_state_id        ( cx_virt_state_id   ),
+      .mcx_cxu_0_id            ( ), // TODO
+      .mcx_cxu_1_id            ( ), // TODO
+      .mcx_cxu_2_id            ( ), // TODO
+      .mcx_cxu_3_id            ( ), // TODO
+      .mcx_except_en           ( ), // TODO
 
       // performance counter related signals
       .if_valid_i              ( if_valid           ),
